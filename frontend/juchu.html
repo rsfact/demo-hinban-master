@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品番変換システム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>品番変換システム</h1>
+
+        <div class="conversion-form">
+            <div class="form-header">
+                <h2>品番変換</h2>
+                <p>社外品番を入力して変換ボタンを押すと、対応する社内品番が表示されます。</p>
+            </div>
+
+            <div class="form-group">
+                <label for="externalId">社外品番：</label>
+                <input type="text" id="externalId" placeholder="例：EX001">
+                <button id="convertBtn">変換</button>
+            </div>
+
+            <div id="errorMessage" class="error-message"></div>
+        </div>
+
+        <div class="result-container">
+            <h2>変換結果</h2>
+            <div class="table-container">
+                <table id="resultTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>社外品番</th>
+                            <th>社内品番</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultTableBody">
+                        <!-- 結果がここに表示されます -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="noResults" class="no-results">変換結果がここに表示されます</div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
