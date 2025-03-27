@@ -1,0 +1,162 @@
+Option Explicit
+
+' JSONを解析するためのDictionaryオブジェクトを使用するための参照設定
+' ツール > 参照設定 > Microsoft Scripting Runtime にチェックを入れる必要があります
+
+' PowerShellスクリプトを実行し、結果を取得する関数
+Public Function ExecutePowerShell(method As String, Optional item_id As String = "", _
+                                 Optional ex_id As String = "", Optional in_id As String = "", _
+                                 Optional json_data As String = "") As String
+    On Error GoTo ErrorHandler
+
+    Dim shell As Object
+    Dim ps_path As String
+    Dim command As String
+    Dim result As String
+
+    ' シェルオブジェクトを作成
+    Set shell = CreateObject("WScript.Shell")
+
+    ' PowerShellスクリプトのパスを取得（現在のブックと同じフォルダ）
+    ps_path = ThisWorkbook.Path & "\mx1_connector.ps1"
+
+    ' コマンドを構築
+    command = "powershell.exe -ExecutionPolicy Bypass -File """ & ps_path & """"
+    command = command & " -method """ & method & """"
+
+    ' オプションパラメータを追加
+    If item_id <> "" Then
+        command = command & " -item_id """ & item_id & """"
+    End If
+
+    If ex_id <> "" Then
+        command = command & " -ex_id """ & ex_id & """"
+    End If
+
+    If in_id <> "" Then
+        command = command & " -in_id """ & in_id & """"
+    End If
+
+    If json_data <> "" Then
+        command = command & " -json_data """ & json_data & """"
+    End If
+
+    ' PowerShellを実行して結果を取得
+    result = shell.Exec(command).StdOut.ReadAll()
+
+    ' 結果を返す
+    ExecutePowerShell = result
+    Exit Function
+
+ErrorHandler:
+    ExecutePowerShell = "{""success"":false,""error"":""" & Err.Description & """}"
+End Function
+
+' JSONレスポンスを解析して表示する関数
+Public Sub ParseAndDisplayResponse(json_response As String)
+    On Error GoTo ErrorHandler
+
+    ' JSONパーサーを使用（簡易版）
+    Dim is_success As Boolean
+    Dim data_start As Long, data_end As Long
+    Dim error_start As Long, error_end As Long
+
+    ' 成功したかどうかを確認
+    is_success = InStr(1, json_response, """success"":true") > 0
+
+    If is_success Then
+        ' データ部分を抽出して表示
+        data_start = InStr(1, json_response, """data"":") + 7
+        data_end = InStrRev(json_response, ",""error"":")
+
+        If data_end = 0 Then
+            data_end = Len(json_response) - 1
+        End If
+
+        Dim data_json As String
+        data_json = Mid(json_response, data_start, data_end - data_start)
+
+        Debug.Print "API呼び出し成功:"
+        Debug.Print data_json
+    Else
+        ' エラー部分を抽出して表示
+        error_start = InStr(1, json_response, """error"":") + 8
+        error_end = InStrRev(json_response, "}")
+
+        Dim error_msg As String
+        error_msg = Mid(json_response, error_start, error_end - error_start - 1)
+        error_msg = Replace(error_msg, """", "")
+
+        Debug.Print "API呼び出しエラー:"
+        Debug.Print error_msg
+    End If
+
+    Exit Sub
+
+ErrorHandler:
+    Debug.Print "JSONの解析エラー: " & Err.Description
+    Debug.Print "元のレスポンス: " & json_response
+End Sub
+
+' 品番を検索する例
+Public Sub SearchItems()
+    Dim response As String
+
+    ' 検索条件を指定してGETリクエスト
+    response = ExecutePowerShell("GET", "", "ABC123", "")
+
+    ' 結果を解析して表示
+    ParseAndDisplayResponse response
+End Sub
+
+' 品番を取得する例
+Public Sub GetItem()
+    Dim response As String
+
+    ' IDを指定してGETリクエスト
+    response = ExecutePowerShell("GET", "1")
+
+    ' 結果を解析して表示
+    ParseAndDisplayResponse response
+End Sub
+
+' 品番を作成する例
+Public Sub CreateItem()
+    Dim json_data As String
+    Dim response As String
+
+    ' 作成するデータをJSON形式で指定
+    json_data = "{""ex_id"":""NEW001"",""in_id"":""INT001""}"
+
+    ' POSTリクエスト
+    response = ExecutePowerShell("POST", "", "", "", json_data)
+
+    ' 結果を解析して表示
+    ParseAndDisplayResponse response
+End Sub
+
+' 品番を更新する例
+Public Sub UpdateItem()
+    Dim json_data As String
+    Dim response As String
+
+    ' 更新するデータをJSON形式で指定
+    json_data = "{""ex_id"":""UPD001"",""in_id"":""INT002""}"
+
+    ' PUTリクエスト
+    response = ExecutePowerShell("PUT", "1", "", "", json_data)
+
+    ' 結果を解析して表示
+    ParseAndDisplayResponse response
+End Sub
+
+' 品番を削除する例
+Public Sub DeleteItem()
+    Dim response As String
+
+    ' DELETEリクエスト
+    response = ExecutePowerShell("DELETE", "1")
+
+    ' 結果を解析して表示
+    ParseAndDisplayResponse response
+End Sub
