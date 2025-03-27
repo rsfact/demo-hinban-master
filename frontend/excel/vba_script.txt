@@ -1,0 +1,191 @@
+Option Explicit
+
+'-------------------------------------------------------
+' PowerShellスクリプトを実行し、結果を取得する関数
+'-------------------------------------------------------
+Public Function ExecutePowerShell(method As String, Optional id As String = "", Optional ex_id As String = "", Optional in_id As String = "", Optional json_data As String = "") As String
+    On Error GoTo ErrorHandler
+
+    Dim shell As Object
+    Dim ps_path As String
+    Dim result As String
+
+    ' シェルオブジェクトを作成
+    Set shell = CreateObject("WScript.Shell")
+
+    ' PowerShellスクリプトのパスを取得（現在のブックと同じフォルダ）
+    ps_path = ThisWorkbook.Path & "\mx1_connector.ps1"
+
+    ' 非表示でPowerShellを実行するコマンドを構築
+    Dim hidden_command As String
+    hidden_command = "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& {. '" & ps_path & "' -method '" & method & "'"
+
+    ' パラメータが指定されている場合は追加
+    If id <> "" Then
+        hidden_command = hidden_command & " -id '" & id & "'"
+    End If
+
+    If ex_id <> "" Then
+        hidden_command = hidden_command & " -ex_id '" & ex_id & "'"
+    End If
+
+    If in_id <> "" Then
+        hidden_command = hidden_command & " -in_id '" & in_id & "'"
+    End If
+
+    If json_data <> "" Then
+        hidden_command = hidden_command & " -json_data " & json_data
+    End If
+
+    ' コマンドを閉じる
+    hidden_command = hidden_command & "}"" 2>&1"
+
+    ' 非表示でコマンドを実行し、出力を取得
+    Dim exec_obj As Object
+    Set exec_obj = shell.Exec(hidden_command)
+
+    ' 出力を読み取る
+    result = exec_obj.StdOut.ReadAll()
+
+    ' 結果が空の場合はエラー出力を確認
+    If Trim(result) = "" Then
+        result = exec_obj.StdErr.ReadAll()
+    End If
+
+    ' 結果を返す
+    ExecutePowerShell = result
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "エラー: " & Err.Description
+    ExecutePowerShell = ""
+End Function
+
+'-------------------------------------------------------
+' JSONレスポンスを解析して表示し、結果を返す関数
+'-------------------------------------------------------
+Public Function ParseAndDisplayResponse(json_response As String) As String
+    On Error GoTo ErrorHandler
+
+    Dim result As String
+    result = ""
+
+    ' 受信したレスポンスを表示
+    Debug.Print "【受信したレスポンス】"
+    Debug.Print json_response
+
+    ' データ内容を表示
+    Debug.Print "【データ内容】"
+
+    ' 品番情報を抽出して表示
+    Dim id_pos As Long, ex_id_pos As Long, in_id_pos As Long
+
+    id_pos = InStr(1, json_response, """id"":")
+    ex_id_pos = InStr(1, json_response, """ex_id"":")
+    in_id_pos = InStr(1, json_response, """in_id"":")
+
+    If id_pos > 0 And ex_id_pos > 0 And in_id_pos > 0 Then
+        Dim id_end As Long, ex_id_end As Long, in_id_end As Long
+        Dim id_value As String, ex_id_value As String, in_id_value As String
+
+        id_end = InStr(id_pos + 5, json_response, ",")
+        ex_id_end = InStr(ex_id_pos + 8, json_response, ",")
+        in_id_end = InStr(in_id_pos + 8, json_response, "}")
+
+        id_value = Trim(Mid(json_response, id_pos + 5, id_end - (id_pos + 5)))
+        ex_id_value = Trim(Mid(json_response, ex_id_pos + 8, ex_id_end - (ex_id_pos + 8)))
+        in_id_value = Trim(Mid(json_response, in_id_pos + 8, in_id_end - (in_id_pos + 8)))
+
+        ' 引用符を削除
+        ex_id_value = Replace(ex_id_value, """", "")
+        in_id_value = Replace(in_id_value, """", "")
+
+        ' 改行文字を削除（CR+LF, CR, LF）
+        in_id_value = Replace(in_id_value, vbCrLf, "")
+        in_id_value = Replace(in_id_value, vbCr, "")
+        in_id_value = Replace(in_id_value, vbLf, "")
+
+        Debug.Print "ID: " & id_value
+        Debug.Print "客先キー: " & ex_id_value
+        Debug.Print "社内キー: " & in_id_value
+
+        ' 結果を整形して返す
+        ' result = "ID: " & id_value & ", 客先キー: " & ex_id_value & ", 社内キー: " & in_id_value
+        result = id_value & "," & ex_id_value & "," & in_id_value
+    Else
+        Debug.Print "品番情報が見つかりませんでした。"
+        result = ",,品番情報が見つかりませんでした。"
+    End If
+
+    ParseAndDisplayResponse = result
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "JSONの解析エラー: " & Err.Description
+    ParseAndDisplayResponse = "JSONの解析エラー: " & Err.Description
+End Function
+
+'-------------------------------------------------------
+' 品番を取得する関数（ID、ex_id、in_idを指定可能）
+'-------------------------------------------------------
+Public Function GetItem(Optional id As String = "", Optional ex_id As String = "", Optional in_id As String = "") As String
+    ' パラメータが何も指定されていない場合はエラー
+    If id = "" And ex_id = "" And in_id = "" Then
+        Debug.Print "エラー: 検索パラメータ（id、ex_id、in_id）のいずれかを指定してください。"
+        MsgBox "検索パラメータ（id、ex_id、in_id）のいずれかを指定してください。", vbExclamation, "パラメータエラー"
+        GetItem = "エラー: 検索パラメータが指定されていません。"
+        Exit Function
+    End If
+
+    Dim response As String
+    Dim result As String
+
+    ' GETリクエストを実行
+    response = ExecutePowerShell("GET", id, ex_id, in_id)
+
+    ' 結果を解析して表示と返却
+    result = ParseAndDisplayResponse(response)
+
+    ' 結果を返す
+    GetItem = result
+End Function
+
+'-------------------------------------------------------
+' 品番を登録する関数
+'-------------------------------------------------------
+Public Function PostItem(ex_id As String, in_id As String) As String
+    ' パラメータが空でないか確認
+    If Trim(ex_id) = "" Or Trim(in_id) = "" Then
+        Debug.Print "エラー: ex_idとin_idの両方が必要です。"
+        MsgBox "ex_idとin_idの両方が必要です。", vbExclamation, "パラメータエラー"
+        PostItem = "エラー: パラメータが不足しています。"
+        Exit Function
+    End If
+
+    ' JSONデータを作成（シングルクォートでエスケープ）
+    Dim json_data As String
+    json_data = "'{""ex_id"":""" & ex_id & """,""in_id"":""" & in_id & """}'"
+
+    ' ExecutePowerShell関数を使用してPOSTリクエストを実行
+    Dim result As String
+    result = ExecutePowerShell("POST", "", "", "", json_data)
+
+    ' デバッグ用に結果を出力
+    Debug.Print "POSTリクエスト結果: " & result
+
+    ' 結果を解析して表示
+    Dim parsed_result As String
+    parsed_result = ParseAndDisplayResponse(result)
+
+    ' 結果を返す
+    PostItem = result
+End Function
+
+'-------------------------------------------------------
+' 使用例：
+' 1. IDで検索: GetItem "1"
+' 2. 客先キーで検索: GetItem "", "ABC123"
+' 3. 社内キーで検索: GetItem "", "", "XYZ789"
+' 4. 複数条件で検索: GetItem "1", "ABC123"
+' 5. 品番登録: PostItem "ABC123", "XYZ789"
+'-------------------------------------------------------

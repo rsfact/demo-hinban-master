@@ -1,0 +1,101 @@
+Private Sub BtnGet_Click()
+    ' 選択されたセルの範囲を取得
+    Dim selection_range As Range
+    Set selection_range = Selection
+
+    ' 選択されたセルがない場合はエラーメッセージを表示
+    If selection_range.Cells.Count = 0 Then
+        MsgBox "セルが選択されていません。", vbExclamation
+        Exit Sub
+    End If
+
+    ' 画面更新を停止（パフォーマンス向上のため）
+    Application.ScreenUpdating = False
+
+    ' 各セルに対して処理を実行
+    Dim cell As Range
+    For Each cell In selection_range.Cells
+        ' セルの値を取得
+        Dim ex_id_value As String
+        ex_id_value = cell.Value
+
+        ' 値が空でない場合のみ処理
+        If Trim(ex_id_value) <> "" Then
+            ' 検索を実行し、結果を取得
+            Dim result As String
+            result = GetItem(ex_id:=ex_id_value)
+
+            ' 結果をカンマで分割
+            Dim result_parts As Variant
+            result_parts = Split(result, ",")
+
+            ' 分割した結果を各セルに記入（エラーチェック付き）
+            If UBound(result_parts) >= 2 Then
+                ' ID値を1つ右のセルに記入
+                cell.Offset(0, 1).Value = result_parts(0)
+                ' in_id値を2つ右のセルに記入
+                cell.Offset(0, 2).Value = result_parts(2)
+            Else
+                ' エラーまたは不正な形式の場合は元の結果をそのまま表示
+                cell.Offset(0, 1).Value = result
+            End If
+        End If
+    Next cell
+
+    ' 画面更新を再開
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub BtnCreate_Click()
+    ' アクティブセルを取得
+    Dim active_cell As Range
+    Set active_cell = ActiveCell
+
+    ' アクティブセルの値を取得
+    Dim ex_id_value As String
+    ex_id_value = active_cell.Value
+
+    ' 値が空でないか確認
+    If Trim(ex_id_value) = "" Then
+        MsgBox "アクティブセルに値が入力されていません。", vbExclamation
+        Exit Sub
+    End If
+
+    ' 2つ右のセルからin_id値を取得
+    Dim in_id_value As String
+    in_id_value = active_cell.Offset(0, 2).Value
+
+    ' in_id値が空でないか確認
+    If Trim(in_id_value) = "" Then
+        MsgBox "in_id値が見つかりません。2つ右のセルにin_id値が必要です。", vbExclamation
+        Exit Sub
+    End If
+
+    ' PostItem関数を使用してPOSTリクエストを実行
+    Dim response As String
+    response = PostItem(ex_id_value, in_id_value)
+
+    ' レスポンスを解析
+    Dim parsed_result As String
+    parsed_result = ParseAndDisplayResponse(response)
+
+    ' 結果を解析して表示
+    If InStr(response, """errors"":  [") > 0 And InStr(response, "]") > InStr(response, """errors"":  [") + 12 Then
+        ' エラーがある場合
+        MsgBox "登録中にエラーが発生しました。詳細はデバッグウィンドウを確認してください。", vbExclamation
+        active_cell.Offset(0, 3).Value = "エラー"
+    Else
+        ' 成功した場合
+        MsgBox "登録が完了しました。", vbInformation
+
+        ' 結果をカンマで分割
+        Dim result_parts As Variant
+        result_parts = Split(parsed_result, ",")
+
+        ' 分割した結果を各セルに記入（エラーチェック付き）
+        If UBound(result_parts) >= 2 Then
+            ' ID値を1つ右のセルに記入
+            active_cell.Offset(0, 1).Value = result_parts(0)
+        End If
+    End If
+End Sub

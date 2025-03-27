@@ -1,93 +1,97 @@
 param (
-    [Parameter(Mandatory=$true)]
     [string]$method,
-
-    [Parameter(Mandatory=$false)]
-    [string]$item_id,
-
-    [Parameter(Mandatory=$false)]
-    [string]$ex_id,
-
-    [Parameter(Mandatory=$false)]
-    [string]$in_id,
-
-    [Parameter(Mandatory=$false)]
-    [string]$json_data
+    [string]$item_id = "",
+    [string]$ex_id = "",
+    [string]$in_id = "",
+    [string]$json_data = ""
 )
 
-# APIのベースURL
-$base_url = "http://localhost:8000/api/items"
+# Base URL for API
+$baseUrl = "http://localhost:8000/api/items"
 
-# 結果を格納するオブジェクト
-$result = @{
-    success = $false
-    data = $null
-    error = $null
+# Prepare HTTP headers
+$headers = @{
+    "Content-Type" = "application/json"
+    "Accept" = "application/json"
 }
 
-try {
-    # リクエストヘッダー
-    $headers = @{
-        "Content-Type" = "application/json"
-        "Accept" = "application/json"
+# Process based on method
+$methodUpper = $method.ToUpper()
+
+# GET method
+if ($methodUpper -eq "GET") {
+    # Get by ID
+    if ($item_id -ne "") {
+        $url = "$baseUrl/$item_id"
+        $result = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
+    }
+    # Search by criteria
+    elseif ($ex_id -ne "" -or $in_id -ne "") {
+        $queryParams = @()
+        if ($ex_id -ne "") { $queryParams += "ex_id=$ex_id" }
+        if ($in_id -ne "") { $queryParams += "in_id=$in_id" }
+
+        $queryString = [string]::Join("&", $queryParams)
+        $url = "$baseUrl/?$queryString"
+
+        $result = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
+    }
+    # Get all
+    else {
+        $result = Invoke-RestMethod -Uri $baseUrl -Method Get -Headers $headers
     }
 
-    # メソッドに応じた処理
-    switch ($method) {
-        "GET" {
-            # URLの構築
-            $url = $base_url
-
-            # 特定のIDが指定されている場合
-            if ($item_id) {
-                $url = "$base_url/$item_id"
-            }
-            # 検索条件がある場合はクエリパラメータを追加
-            else {
-                $query_params = @()
-                if ($ex_id) { $query_params += "ex_id=$ex_id" }
-                if ($in_id) { $query_params += "in_id=$in_id" }
-
-                if ($query_params.Count -gt 0) {
-                    $url += "?" + ($query_params -join "&")
-                }
-            }
-
-            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
-        }
-        "POST" {
-            # 新規作成
-            $response = Invoke-RestMethod -Uri $base_url -Method Post -Headers $headers -Body $json_data
-        }
-        "PUT" {
-            # 更新
-            if (-not $item_id) {
-                throw "PUT操作にはitem_idが必要です"
-            }
-            $url = "$base_url/$item_id"
-            $response = Invoke-RestMethod -Uri $url -Method Put -Headers $headers -Body $json_data
-        }
-        "DELETE" {
-            # 削除
-            if (-not $item_id) {
-                throw "DELETE操作にはitem_idが必要です"
-            }
-            $url = "$base_url/$item_id"
-            $response = Invoke-RestMethod -Uri $url -Method Delete -Headers $headers
-        }
-        default {
-            throw "サポートされていないメソッドです: $method"
-        }
+    # Convert response to JSON and output
+    $result | ConvertTo-Json -Depth 10
+}
+# POST method
+elseif ($methodUpper -eq "POST") {
+    # JSON data is required
+    if ($json_data -eq "") {
+        Write-Error "POST request requires JSON data"
+        exit 1
     }
 
-    # 成功した場合
-    $result.success = $true
-    $result.data = $response
-}
-catch {
-    # エラーの場合
-    $result.error = $_.Exception.Message
-}
+    $result = Invoke-RestMethod -Uri $baseUrl -Method Post -Headers $headers -Body $json_data
 
-# 結果をJSON形式で返す
-return $result | ConvertTo-Json -Depth 10
+    # Convert response to JSON and output
+    $result | ConvertTo-Json -Depth 10
+}
+# PUT method
+elseif ($methodUpper -eq "PUT") {
+    # Item ID is required
+    if ($item_id -eq "") {
+        Write-Error "PUT request requires item_id"
+        exit 1
+    }
+
+    # Use empty JSON if not provided
+    if ($json_data -eq "") {
+        $json_data = "{}"
+    }
+
+    $url = "$baseUrl/$item_id"
+    $result = Invoke-RestMethod -Uri $url -Method Put -Headers $headers -Body $json_data
+
+    # Convert response to JSON and output
+    $result | ConvertTo-Json -Depth 10
+}
+# DELETE method
+elseif ($methodUpper -eq "DELETE") {
+    # Item ID is required
+    if ($item_id -eq "") {
+        Write-Error "DELETE request requires item_id"
+        exit 1
+    }
+
+    $url = "$baseUrl/$item_id"
+    $result = Invoke-RestMethod -Uri $url -Method Delete -Headers $headers
+
+    # Convert response to JSON and output
+    $result | ConvertTo-Json -Depth 10
+}
+# Unsupported method
+else {
+    Write-Error "Unsupported HTTP method: $method"
+    exit 1
+}
