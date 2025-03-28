@@ -41,7 +41,8 @@ def upgrade() -> None:
         [
             {'id': 1, 'ex_id': 'tb_89924-X1175-00', 'in_id': '7880_Color_580'},
             {'id': 2, 'ex_id': 'tb_7A3S6-X7V01-00', 'in_id': '2_Color_184E'},
-            {'id': 3, 'ex_id': 'tb_71731-X1066-A0', 'in_id': '16791_Color_235'}
+            {'id': 3, 'ex_id': 'tb_71731-X1066-A0', 'in_id': '16791_Color_235'},
+            {'id': 4, 'ex_id': 'ts_40456ABC', 'in_id': '2_Color_184E'}
         ]
     )
 
